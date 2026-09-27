@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Expense & Income Tracker</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --text:#1a1d23; --sub:#6b7280;
+    --border:#e5e7eb; --accent:#4f46e5; --income:#16a34a; --expense:#dc2626;
+    --income-bg:#dcfce7; --expense-bg:#fee2e2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#111318; --card:#1b1e26; --text:#f0f1f3; --sub:#9aa0ab;
+      --border:#2a2e38; --income-bg:#0f2a1b; --expense-bg:#2e1416;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#111318; --card:#1b1e26; --text:#f0f1f3; --sub:#9aa0ab;
+    --border:#2a2e38; --income-bg:#0f2a1b; --expense-bg:#2e1416;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:20px 16px 80px;}
+  h1{font-size:1.3rem;margin:4px 0 16px;}
+  .summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px;}
+  .sum-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center;}
+  .sum-card .label{font-size:.72rem;color:var(--sub);text-transform:uppercase;letter-spacing:.03em;}
+  .sum-card .val{font-size:1.05rem;font-weight:700;margin-top:4px;word-break:break-word;}
+  .val.income{color:var(--income);} .val.expense{color:var(--expense);}
+  .tabs{display:flex;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:16px;}
+  .tab{flex:1;text-align:center;padding:8px 0;border-radius:8px;cursor:pointer;font-size:.9rem;color:var(--sub);user-select:none;}
+  .tab.active{background:var(--accent);color:#fff;font-weight:600;}
+  .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;}
+  .nav button{background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:1rem;}
+  .nav .period-label{font-weight:600;font-size:.95rem;text-align:center;flex:1;}
+  form{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:18px;display:grid;gap:10px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  input,select{
+    background:var(--bg);border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:9px 10px;font-size:.9rem;width:100%;
+  }
+  .typebtns{display:flex;gap:8px;}
+  .typebtns button{
+    flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);
+    background:var(--bg);color:var(--sub);cursor:pointer;font-weight:600;font-size:.85rem;
+  }
+  .typebtns button.sel-income{background:var(--income-bg);color:var(--income);border-color:var(--income);}
+  .typebtns button.sel-expense{background:var(--expense-bg);color:var(--expense);border-color:var(--expense);}
+  form button[type=submit]{
+    background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer;font-size:.9rem;
+  }
+  .list{display:flex;flex-direction:column;gap:8px;}
+  .item{
+    background:var(--card);border:1px solid var(--border);border-radius:10px;
+    padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;
+  }
+  .item .meta{min-width:0;}
+  .item .cat{font-weight:600;font-size:.9rem;}
+  .item .date{font-size:.75rem;color:var(--sub);}
+  .item .amt{font-weight:700;white-space:nowrap;}
+  .item .amt.income{color:var(--income);} .item .amt.expense{color:var(--expense);}
+  .item .del{background:none;border:none;color:var(--sub);cursor:pointer;font-size:1rem;padding:2px 6px;}
+  .empty{text-align:center;color:var(--sub);padding:30px 10px;font-size:.9rem;}
+  .budget-bar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;flex-direction:column;gap:8px;}
+  .budget-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .budget-row .label{font-size:.72rem;color:var(--sub);text-transform:uppercase;letter-spacing:.03em;}
+  .budget-row .val{font-size:1.05rem;font-weight:700;}
+  .budget-row.overall{border-top:1px solid var(--border);padding-top:8px;}
+  #editBudgetBtn,#saveBudgetBtn{background:var(--bg);border:1px solid var(--border);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:.8rem;font-weight:600;cursor:pointer;}
+  .budget-edit input{flex:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💰 Expense & Income Tracker</h1>
+
+  <div class="budget-bar" id="budgetBar">
+    <div class="budget-row" id="budgetDisplay">
+      <div>
+        <div class="label">Initial Budget</div>
+        <div class="val" id="budgetVal">₱0</div>
+      </div>
+      <button type="button" id="editBudgetBtn">Edit</button>
+    </div>
+    <div class="budget-row budget-edit" id="budgetEditRow" style="display:none;">
+      <input type="number" id="budgetInput" step="0.01" placeholder="Starting balance">
+      <button type="button" id="saveBudgetBtn">Save</button>
+    </div>
+    <div class="budget-row overall">
+      <div class="label">Overall Balance (all-time)</div>
+      <div class="val" id="overallBalance">₱0</div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="sum-card"><div class="label">Income</div><div class="val income" id="sumIncome">₱0</div></div>
+    <div class="sum-card"><div class="label">Expense</div><div class="val expense" id="sumExpense">₱0</div></div>
+    <div class="sum-card"><div class="label">Period Balance</div><div class="val" id="sumBalance">₱0</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-view="daily">Daily</div>
+    <div class="tab" data-view="weekly">Weekly</div>
+    <div class="tab" data-view="monthly">Monthly</div>
+  </div>
+
+  <div class="nav">
+    <button id="prevBtn">‹</button>
+    <div class="period-label" id="periodLabel"></div>
+    <button id="nextBtn">›</button>
+  </div>
+
+  <form id="entryForm">
+    <div class="typebtns">
+      <button type="button" id="btnIncome" class="sel-income">+ Income</button>
+      <button type="button" id="btnExpense">− Expense</button>
+    </div>
+    <div class="row2">
+      <input type="number" id="amount" placeholder="Amount" step="0.01" min="0.01" required>
+      <input type="date" id="date" required>
+    </div>
+    <input type="text" id="category" placeholder="Category (e.g. Food, Salary, Rent)" required>
+    <input type="text" id="note" placeholder="Note (optional)">
+    <button type="submit">Add Entry</button>
+  </form>
+
+  <div class="list" id="list"></div>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'expense_tracker_entries_v1';
+  const BUDGET_KEY = 'expense_tracker_budget_v1';
+  let entries = [];
+  try {
+    entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  } catch(e){ entries = []; }
+  let initialBudget = 0;
+  try {
+    initialBudget = parseFloat(localStorage.getItem(BUDGET_KEY) || '0') || 0;
+  } catch(e){ initialBudget = 0; }
+
+  let currentType = 'income';
+  let view = 'daily';
+  let anchorDate = new Date(); // the date we're centered on for the period
+
+  const $ = id => document.getElementById(id);
+  $('date').value = toISODate(new Date());
+
+  function toISODate(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function parseISO(s){
+    const [y,m,d] = s.split('-').map(Number);
+    return new Date(y, m-1, d);
+  }
+  function fmtMoney(n){
+    const sign = n<0 ? '-' : '';
+    return sign + '₱' + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  function save(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }catch(e){}
+  }
+  function saveBudget(){
+    try{ localStorage.setItem(BUDGET_KEY, String(initialBudget)); }catch(e){}
+  }
+  function startOfWeek(d){
+    const nd = new Date(d);
+    const day = nd.getDay(); // 0=Sun
+    nd.setDate(nd.getDate() - day);
+    nd.setHours(0,0,0,0);
+    return nd;
+  }
+  function endOfWeek(d){
+    const s = startOfWeek(d);
+    const e = new Date(s);
+    e.setDate(e.getDate()+6);
+    return e;
+  }
+  function getRange(){
+    if(view==='daily'){
+      const s = new Date(anchorDate); s.setHours(0,0,0,0);
+      const e = new Date(anchorDate); e.setHours(23,59,59,999);
+      return [s,e];
+    } else if(view==='weekly'){
+      const s = startOfWeek(anchorDate);
+      const e = endOfWeek(anchorDate); e.setHours(23,59,59,999);
+      return [s,e];
+    } else {
+      const s = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+      const e = new Date(anchorDate.getFullYear(), anchorDate.getMonth()+1, 0, 23,59,59,999);
+      return [s,e];
+    }
+  }
+  function periodLabel(){
+    const [s,e] = getRange();
+    const opts = {month:'short', day:'numeric'};
+    if(view==='daily'){
+      return s.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric', year:'numeric'});
+    } else if(view==='weekly'){
+      const sameYear = s.getFullYear()===e.getFullYear();
+      return s.toLocaleDateString(undefined,opts) + ' – ' + e.toLocaleDateString(undefined, sameYear?opts:{...opts,year:'numeric'}) + ', ' + e.getFullYear();
+    } else {
+      return anchorDate.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+    }
+  }
+  function shiftAnchor(dir){
+    const d = new Date(anchorDate);
+    if(view==='daily') d.setDate(d.getDate()+dir);
+    else if(view==='weekly') d.setDate(d.getDate()+dir*7);
+    else d.setMonth(d.getMonth()+dir);
+    anchorDate = d;
+  }
+  function entriesInRange(){
+    const [s,e] = getRange();
+    return entries.filter(en=>{
+      const d = parseISO(en.date);
+      return d >= s && d <= e;
+    }).sort((a,b)=> b.date.localeCompare(a.date) || b.id - a.id);
+  }
+
+  function render(){
+    $('budgetVal').textContent = fmtMoney(initialBudget);
+    let allIncome=0, allExpense=0;
+    entries.forEach(en=> en.type==='income' ? allIncome+=en.amount : allExpense+=en.amount);
+    const overall = initialBudget + allIncome - allExpense;
+    const overallEl = $('overallBalance');
+    overallEl.textContent = fmtMoney(overall);
+    overallEl.style.color = overall>=0 ? 'var(--income)' : 'var(--expense)';
+
+    $('periodLabel').textContent = periodLabel();
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.view===view));
+
+    const list = entriesInRange();
+    let income=0, expense=0;
+    list.forEach(en=> en.type==='income' ? income+=en.amount : expense+=en.amount);
+    $('sumIncome').textContent = fmtMoney(income);
+    $('sumExpense').textContent = fmtMoney(expense);
+    const bal = income-expense;
+    const balEl = $('sumBalance');
+    balEl.textContent = fmtMoney(bal);
+    balEl.style.color = bal>=0 ? 'var(--income)' : 'var(--expense)';
+
+    const listEl = $('list');
+    listEl.innerHTML = '';
+    if(list.length===0){
+      listEl.innerHTML = '<div class="empty">No entries for this period.</div>';
+      return;
+    }
+    list.forEach(en=>{
+      const div = document.createElement('div');
+      div.className = 'item';
+      const d = parseISO(en.date);
+      div.innerHTML = `
+        <div class="meta">
+          <div class="cat">${escapeHtml(en.category)}${en.note ? ' — '+escapeHtml(en.note) : ''}</div>
+          <div class="date">${d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="amt ${en.type}">${en.type==='income'?'+':'-'}${fmtMoney(en.amount)}</div>
+          <button class="del" data-id="${en.id}" title="Delete">✕</button>
+        </div>`;
+      listEl.appendChild(div);
+    });
+  }
+  function escapeHtml(s){
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  $('editBudgetBtn').addEventListener('click', ()=>{
+    $('budgetInput').value = initialBudget || '';
+    $('budgetEditRow').style.display = 'flex';
+    $('budgetInput').focus();
+  });
+  $('saveBudgetBtn').addEventListener('click', ()=>{
+    const v = parseFloat($('budgetInput').value);
+    initialBudget = isNaN(v) ? 0 : v;
+    saveBudget();
+    $('budgetEditRow').style.display = 'none';
+    render();
+  });
+
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click', ()=>{ view = t.dataset.view; render(); });
+  });
+  $('prevBtn').addEventListener('click', ()=>{ shiftAnchor(-1); render(); });
+  $('nextBtn').addEventListener('click', ()=>{ shiftAnchor(1); render(); });
+
+  $('btnIncome').addEventListener('click', ()=>{
+    currentType='income';
+    $('btnIncome').classList.add('sel-income');
+    $('btnExpense').classList.remove('sel-expense');
+  });
+  $('btnExpense').addEventListener('click', ()=>{
+    currentType='expense';
+    $('btnExpense').classList.add('sel-expense');
+    $('btnIncome').classList.remove('sel-income');
+  });
+
+  $('entryForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const amount = parseFloat($('amount').value);
+    const date = $('date').value;
+    const category = $('category').value.trim();
+    const note = $('note').value.trim();
+    if(!amount || amount<=0 || !date || !category) return;
+    entries.push({
+      id: Date.now()+Math.random(),
+      type: currentType,
+      amount, date, category, note
+    });
+    save();
+    // reset partial fields but keep date/type
+    $('amount').value = '';
+    $('category').value = '';
+    $('note').value = '';
+    render();
+  });
+
+  $('list').addEventListener('click', e=>{
+    const btn = e.target.closest('.del');
+    if(!btn) return;
+    const id = parseFloat(btn.dataset.id);
+    entries = entries.filter(en=>en.id!==id);
+    save();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
