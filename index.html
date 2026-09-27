@@ -139,13 +139,10 @@
   const STORAGE_KEY = 'expense_tracker_entries_v1';
   const BUDGET_KEY = 'expense_tracker_budget_v1';
   let entries = [];
-  try {
-    entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-  } catch(e){ entries = []; }
   let initialBudget = 0;
-  try {
-    initialBudget = parseFloat(localStorage.getItem(BUDGET_KEY) || '0') || 0;
-  } catch(e){ initialBudget = 0; }
+  let dbApi = null;
+  let docRef = null;
+  let writeTimer = null;
 
   let currentType = 'income';
   let view = 'daily';
@@ -165,11 +162,51 @@
     const sign = n<0 ? '-' : '';
     return sign + '₱' + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
   }
-  function save(){
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }catch(e){}
+  function loadLocalFallback(){
+    try{ entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }catch(e){ entries = []; }
+    try{ initialBudget = parseFloat(localStorage.getItem(BUDGET_KEY) || '0') || 0; }catch(e){ initialBudget = 0; }
   }
-  function saveBudget(){
+  function persist(){
+    // Always mirror to localStorage as a safety net.
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }catch(e){}
     try{ localStorage.setItem(BUDGET_KEY, String(initialBudget)); }catch(e){}
+    if(docRef){
+      clearTimeout(writeTimer);
+      writeTimer = setTimeout(()=>{
+        docRef.set({ entries, initialBudget }).catch(()=>{ /* keep local copy as source of truth on failure */ });
+      }, 150);
+    }
+  }
+  async function initStorage(){
+    loadLocalFallback(); // instant paint from whatever we last saw locally
+    render();
+    try{
+      dbApi = (window.claude && typeof window.claude.use === 'function') ? await window.claude.use('db') : null;
+    }catch(e){ dbApi = null; }
+    if(!dbApi) return; // stay on localStorage
+    docRef = dbApi.doc('tracker/state');
+    try{
+      const snap = await docRef.get();
+      if(snap && snap.exists && snap.data()){
+        const d = snap.data();
+        entries = Array.isArray(d.entries) ? d.entries : [];
+        initialBudget = typeof d.initialBudget === 'number' ? d.initialBudget : 0;
+        render();
+      } else {
+        // First time: seed the store with whatever we had locally.
+        docRef.set({ entries, initialBudget }).catch(()=>{});
+      }
+    }catch(e){ /* fall back silently to localStorage copy already loaded */ }
+    docRef.onSnapshot(snap=>{
+      if(!snap || !snap.exists) return;
+      const d = snap.data();
+      if(!d) return;
+      entries = Array.isArray(d.entries) ? d.entries : [];
+      initialBudget = typeof d.initialBudget === 'number' ? d.initialBudget : 0;
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }catch(e){}
+      try{ localStorage.setItem(BUDGET_KEY, String(initialBudget)); }catch(e){}
+      render();
+    }, ()=>{ /* subscription error: keep working off local state */ });
   }
   function startOfWeek(d){
     const nd = new Date(d);
@@ -284,7 +321,7 @@
   $('saveBudgetBtn').addEventListener('click', ()=>{
     const v = parseFloat($('budgetInput').value);
     initialBudget = isNaN(v) ? 0 : v;
-    saveBudget();
+    persist();
     $('budgetEditRow').style.display = 'none';
     render();
   });
@@ -318,7 +355,7 @@
       type: currentType,
       amount, date, category, note
     });
-    save();
+    persist();
     // reset partial fields but keep date/type
     $('amount').value = '';
     $('category').value = '';
@@ -331,11 +368,11 @@
     if(!btn) return;
     const id = parseFloat(btn.dataset.id);
     entries = entries.filter(en=>en.id!==id);
-    save();
+    persist();
     render();
   });
 
-  render();
+  initStorage();
 })();
 </script>
 </body>
